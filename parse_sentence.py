@@ -57,10 +57,11 @@ def run(text):
     #for i in range(100):
     #    result = split_using_stanford(raw_doc)
     #    print('Split {} documents'.format(i))
-if __name__ == '__main__':
-    tree = etree.parse("./corpus/bioinfer/bioinfer-1.2.0b-unified-format.xml")
+
+def extract_sentence_info(inputfile,outputfile):
+    tree = etree.parse(inputfile)
     root = tree.getroot()
-    file_object=open('bioinfer.txt','w+')
+    file_object=open(outputfile,'w+')
     for docu in root.iter("document"):
         #iterate every document
         for sent in docu.iter("sentence"):
@@ -68,24 +69,23 @@ if __name__ == '__main__':
             #print(sent.get("text"))
             ids_all=[]
             protein_names=[]
-            protein_offset=[]
+            protein_start=[]
+            protein_end=[]
             for enti in sent.iter("entity"):
                 ids_all.append(enti.get("id"))
                 offset_str=enti.get("charOffset")
                 ind=offset_str.find("-")
                 comma_index=offset_str.find(",")
+                protein_names.append(enti.get("text"))
+                               
                 if comma_index==-1:
-                    len_offset_str=len(offset_str)
+                    len_offset_str=len(offset_str)  
+                    protein_start.append(int(offset_str[0:ind]))                  
+                    protein_end.append(int(offset_str[ind+1:len_offset_str]))
                 else:
                     len_offset_str=comma_index
-                #there are spaces in the protein names in some case
-                space_index=enti.get("text").find(" ")
-                if space_index>0:
-                    protein_names.append(enti.get("text")[0:space_index])
-                    protein_offset.append(str(int(offset_str[ind+1:len_offset_str])-(len(enti.get("text"))-space_index)))
-                else:
-                    protein_names.append(enti.get("text"))
-                    protein_offset.append(offset_str[ind+1:len_offset_str])
+                    protein_start.append(int(offset_str[0:ind]))  
+                    protein_end.append(int(offset_str[ind+1:len_offset_str]))
 
 
             #print("protein_offset:",protein_offset)
@@ -93,11 +93,16 @@ if __name__ == '__main__':
             parse_result=run(sent.get("text"))
             #get the incoming dependency information
             incoming_dependency={}
+            head_word={}
             for sente in parse_result.sentence:
                  for dep in sente.dependency:
                      d_index=getattr(dep,'dep_index')
                      # print(type(d_index))
                      incoming_dependency[d_index]=dep.relation
+                     if d_index==dep.gov_index:
+                         head_word[d_index]='ROOT'
+                     else:
+                         head_word[d_index]=parse_result.token[dep.gov_index].word
                  #incoming_dependency[len(incoming_dependency)]='None'
             #print(incoming_dependency)
             #file object
@@ -116,40 +121,81 @@ if __name__ == '__main__':
 
                     #get the index of two proteins
                     #in some cases, there are two proteins having the same name and in different locations
-                    #print(protein_names[i]+"-"+protein_offset[i]+"-"+protein_names[j]+"-"+protein_offset[j]+"-")
-                    for tok in parse_result.token:
-                        # print(tok.word+"-"+str(tok.char_end))
-                        
-                        if tok.word == protein_names[i] and protein_offset[i]==str(tok.char_end):
-                            protein_index_1=tok.index
-                        elif tok.word == protein_names[j] and protein_offset[j]==str(tok.char_end):
-                            protein_index_2=tok.index
+                    protein_index_start_1=len(parse_result.token)
+                    protein_index_end_1=0
+                    protein_index_start_2=len(parse_result.token)
+                    protein_index_end_2=0
 
+                    for tok in parse_result.token:
+                        #print(type(tok.index))
+                        
+                        if tok.word in protein_names[i] and int(tok.char_start)>=protein_start[i] and int(tok.char_end)<=protein_end[i]:
+                            protein_index_start_1=min(tok.index,protein_index_start_1)
+                            protein_index_end_1=max(tok.index,protein_index_end_1)
+                        elif tok.word in protein_names[j] and int(tok.char_start)>=protein_start[j] and int(tok.char_end)<=protein_end[j]:
+                            protein_index_start_2=min(tok.index,protein_index_start_2)
+                            protein_index_end_2=max(tok.index,protein_index_end_2)
+                    #print("Index info:")
+                    #print(protein_index_start_1,"-",protein_index_end_1,",",protein_index_start_2,"-",protein_index_end_2)
+                    #print("Protein names:",protein_names)        
+                    #print("Protein start:",protein_start)
+                    #print("Protein end:",protein_end)
                     #generate the sentence information
                     token_list=[]
                     for ii in range(len(parse_result.token)):
                         toke=parse_result.token[ii]
+                        #judge a token is a protein or not
+                        token_is_protein=False
+                        for kk in range(len(protein_names)):
+                            if toke.word in protein_names[kk] and int(toke.char_start)>=protein_start[kk] and int(toke.char_end)<=protein_end[kk]:
+                                #print("Word:",toke.word)
+                                #print(int(toke.char_start),"-",protein_start[kk],",",int(toke.char_end),"-",protein_end[kk])
+                                token_is_protein=True
+
                         if ii not in incoming_dependency.keys():
                             incoming_dependency[ii]='None'
-                        if toke.word == protein_names[i] and protein_offset[i]==str(toke.char_end):
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT1"+"|"+str(toke.index-protein_index_1)+"|"+str(toke.index-protein_index_2)+"|"+incoming_dependency[ii])
-                        elif toke.word == protein_names[j] and protein_offset[j]==str(toke.char_end):
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT2"+"|"+str(toke.index-protein_index_1)+"|"+str(toke.index-protein_index_2)+"|"+incoming_dependency[ii])
-                        elif toke.word in protein_names:
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT"+"|"+str(toke.index-protein_index_1)+"|"+str(toke.index-protein_index_2)+"|"+incoming_dependency[ii])
+                        if ii not in head_word.keys():
+                            head_word[ii]='None'
+                        # deicide the index of relative position
+                        if toke.index-protein_index_start_1<0:
+                            index_1=toke.index-protein_index_start_1
                         else:
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"O"+"|"+str(toke.index-protein_index_1)+"|"+str(toke.index-protein_index_2)+"|"+incoming_dependency[ii])
+                            index_1=toke.index-protein_index_end_1
+                        if toke.index-protein_index_start_2<0:
+                            index_2=toke.index-protein_index_start_2
+                        else:
+                            index_2=toke.index-protein_index_end_2
+
+                        if toke.word in protein_names[i] and int(toke.char_start)>=protein_start[i] and int(toke.char_end)<=protein_end[i]:
+
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT1"+"|"+str(0)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                        elif toke.word in protein_names[j] and int(toke.char_start)>=protein_start[j] and int(toke.char_end)<=protein_end[j]:
+
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT2"+"|"+str(index_1)+"|"+str(0)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                        elif token_is_protein:
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT"+"|"+str(index_1)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                        else:
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"O"+"|"+str(index_1)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
                     if interaction_relation is True:
-                        file_object.write('True ')
+                        file_object.write('Positive ')
                         print(token_list)
                         for t in token_list:
                             file_object.write(t)
                             file_object.write(' ')
                         file_object.write('\n')
                     else:
-                        file_object.write('False ')
+                        file_object.write('Negative ')
                         print(token_list)
                         for tt in token_list:
                             file_object.write(tt)
                             file_object.write(' ')
                         file_object.write('\n')
+
+if __name__ == '__main__':
+
+    #python parse_sentence.py ./corpus/bioinfer/bioinfer-1.2.0b-unified-format.xml bioinfer.txt
+    #python parse_sentence.py ./corpus/aimed/aimed.xml aimed.txt    
+    inputfile=sys.argv[1]
+    outputfile=sys.argv[2]
+    #print(inputfile)
+    extract_sentence_info(inputfile,outputfile)
