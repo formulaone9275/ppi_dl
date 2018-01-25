@@ -99,10 +99,11 @@ def extract_sentence_info(inputfile,outputfile):
                      d_index=getattr(dep,'dep_index')
                      # print(type(d_index))
                      incoming_dependency[d_index]=dep.relation
-                     if d_index==dep.gov_index:
-                         head_word[d_index]='ROOT'
-                     else:
-                         head_word[d_index]=parse_result.token[dep.gov_index].word
+                     head_word[d_index]=dep.gov_index
+                     #if d_index==dep.gov_index:
+                     #    head_word[d_index]='ROOT'
+                     #else:
+                     #    head_word[d_index]=parse_result.token[dep.gov_index].word
                  #incoming_dependency[len(incoming_dependency)]='None'
             #print(incoming_dependency)
             #file object
@@ -168,14 +169,14 @@ def extract_sentence_info(inputfile,outputfile):
 
                         if toke.word in protein_names[i] and int(toke.char_start)>=protein_start[i] and int(toke.char_end)<=protein_end[i]:
 
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT1"+"|"+str(0)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT1"+"|"+str(0)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+str(head_word[ii]))
                         elif toke.word in protein_names[j] and int(toke.char_start)>=protein_start[j] and int(toke.char_end)<=protein_end[j]:
 
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT2"+"|"+str(index_1)+"|"+str(0)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT2"+"|"+str(index_1)+"|"+str(0)+"|"+incoming_dependency[ii]+"|"+str(head_word[ii]))
                         elif token_is_protein:
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT"+"|"+str(index_1)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"PROT"+"|"+str(index_1)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+str(head_word[ii]))
                         else:
-                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"O"+"|"+str(index_1)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+head_word[ii])
+                            token_list.append("token:"+toke.word+"|"+toke.pos+"|"+"O"+"|"+str(index_1)+"|"+str(index_2)+"|"+incoming_dependency[ii]+"|"+str(head_word[ii]))
                     if interaction_relation is True:
                         file_object.write('Positive ')
                         print(token_list)
