@@ -98,8 +98,10 @@ def extract_sentence_info(inputfile,outputfile):
                  for dep in sente.dependency:
                      d_index=getattr(dep,'dep_index')
                      # print(type(d_index))
-                     incoming_dependency[d_index]=dep.relation
-                     head_word[d_index]=dep.gov_index
+                     if d_index not in incoming_dependency.keys():
+                         incoming_dependency[d_index]=dep.relation
+                     if d_index not in head_word.keys():
+                         head_word[d_index]=dep.gov_index
                      #if d_index==dep.gov_index:
                      #    head_word[d_index]='ROOT'
                      #else:
