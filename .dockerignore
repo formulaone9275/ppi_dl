@@ -1,0 +1,7 @@
+dep
+.idea
+.git
+env
+backup
+server/nlpserver/lib
+server/bllip/model
