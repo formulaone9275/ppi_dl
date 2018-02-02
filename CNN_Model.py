@@ -342,24 +342,51 @@ if __name__ == '__main__':
     rec, rec_op = tf.metrics.recall(labels=tf.argmax(y_, 1), predictions=y_p)
     pre, pre_op = tf.metrics.precision(labels=tf.argmax(y_, 1), predictions=y_p) 
     
-    cross_validation=10
+    cross_validation=1
+    #train_and_save_parameters=False
+    saver=tf.train.Saver(tf.global_variables())
     with tf.Session() as sess:
-        
+        #train the model with the data from distant supervision
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
+        iteration_error=[]
+        for i in range(10):
 
-        
+            step_error=0
+            batch_num=1
+            for batch_data in iter_sent_dataset(sess, 'data/aimed_cross_validataion*.tfrecords', 128,True,0,False):
+
+                input_data,label_list=batch_data
+                #train the model
+                train_step.run(feed_dict={x: input_data, y_: label_list, keep_prob: 0.5,IsTraining:True})
+                #calculate the cross entropy for this small step
+                ce = cross_entropy.eval(feed_dict={
+                    x: input_data, y_: label_list, keep_prob: 0,IsTraining:False})
+                if batch_num%10==0:
+                    print('Epoch %d, batch %d, cross_entropy %g' % (i+1,batch_num, ce),)
+
+                step_error+=ce
+                batch_num+=1
+            iteration_error.append(step_error)
+            print("Epoch error:",step_error)
+        print("Error change:")
+        print(iteration_error)
+        #save the global variable
+        saver.save(sess,"model/model.ckpt")
         for c in range(cross_validation):
             print("dataset %d as the test dataest"%c)
             #initialize everything to start again
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
+            saver.restore(sess,"model/model.ckpt")
             #record the cross entropy each step during training
-            iteration_error=[]            
-            for i in range(250):
-                
+            iteration_error=[]
+            for i in range(10):
+
                 step_error=0
                 batch_num=1
                 for batch_data in iter_sent_dataset(sess, 'data/aimed_cross_validataion*.tfrecords', 128,True,c,False):
-                               
+
                     input_data,label_list=batch_data
                     #train the model
                     train_step.run(feed_dict={x: input_data, y_: label_list, keep_prob: 0.5,IsTraining:True})
@@ -374,9 +401,9 @@ if __name__ == '__main__':
                 iteration_error.append(step_error)
                 print("Epoch error:",step_error)
             print("Error change:")
-            print(iteration_error) 
+            print(iteration_error)
             plt.figure()
-            plt.plot(range(len(iteration_error)), iteration_error,linewidth=2) 
+            plt.plot(range(len(iteration_error)), iteration_error,linewidth=2)
             plt.title('Loss function', fontsize=20)
             plt.xlabel('Epoch Time', fontsize=16)
             plt.ylabel('Loss', fontsize=16)
@@ -410,20 +437,25 @@ if __name__ == '__main__':
                 y_true+=list(y_t.eval(feed_dict={x: input_data_all_test, y_: label_list_test, keep_prob: 0,IsTraining:False}))
             #y_true=label_list_test
             print("predict:")
-            print(y_pred)       
+            print(y_pred)
             print("True:")
             print(y_true)
             print("Accuracy", sk.metrics.accuracy_score(y_true, y_pred))
             print("Precision", sk.metrics.precision_score(y_true, y_pred))
             print("Recall", sk.metrics.recall_score(y_true, y_pred))
-            print("f1_score", sk.metrics.f1_score(y_true, y_pred))        
-            #print('test accuracy %g' % accuracy.eval(feed_dict={x: input_data_all_test, y_: label_list_test, keep_prob: 1.0}))     
-            
+            print("f1_score", sk.metrics.f1_score(y_true, y_pred))
+
+
+            #print('test accuracy %g' % accuracy.eval(feed_dict={x: input_data_all_test, y_: label_list_test, keep_prob: 1.0}))
+
                 #Second way to calculate precision reall F score
                 #v = sess.run(acc_op, feed_dict={x: input_data_all_test, y_: label_list_test, keep_prob: 1.0}) #accuracy
                 #r = sess.run(rec_op, feed_dict={x: input_data_all_test, y_: label_list_test, keep_prob: 1.0}) #recall
                 #p = sess.run(pre_op, feed_dict={x: input_data_all_test, y_: label_list_test, keep_prob: 1.0}) #precision
-                
+
                 #print("accuracy ", v)
                 #print("recall ", r)
-                #print("precision ", p)        
+                #print("precision ", p)
+            sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
+            saver.restore(sess,"model/model.ckpt")
