@@ -331,33 +331,96 @@ def build_tfrecord_data(filename,target_filename):
 
     return input_data_all,label_list
 
-def random_and_divide_file(filename,output_folder):
+def random_and_divide_file_v0(filename,output_folder,number):
     file_dict={}
-    count_line=1
+    count_line=0
+
     with codecs.open(filename, encoding='utf8') as f:
         for line in tqdm(f):
             file_dict[count_line] = line.strip()
+
             count_line+=1
-    index_list=list(range(1,len(file_dict)+1))
+    index_list=list(range(len(file_dict)))
     random.shuffle(index_list)
-    line_number=int(len(file_dict)/10)
-    for i in range(10):
-        file_object=open(output_folder+"fold"+str(i+1)+".txt",'w+')
-        for j in range(i*line_number,(i+1)*line_number):
+
+
+    for i in range(number):
+        file_object=codecs.open(output_folder+"fold"+str(i+1)+".txt",'w+',encoding='utf8')
+        for j in range(int(len(file_dict)/number)*i,int(len(file_dict)/number)*(i+1)):
+
             file_object.write(file_dict[index_list[j]])
             file_object.write('\n')
         file_object.close()
 
+def random_and_divide_file(filename,output_folder,number):
+    file_dict={}
+    count_line=0
+    document_id=[]
+    with codecs.open(filename, encoding='utf8') as f:
+        for line in tqdm(f):
+            file_dict[count_line] = line.strip()
+            line_spilt=line.strip().split(' ')
+            if line_spilt[1] not in document_id:
+                document_id.append(line_spilt[1])
+            #print(line_spilt[1])
+            count_line+=1
+    index_list=list(range(len(file_dict)))
+    random.shuffle(index_list)
+    random.shuffle(document_id)
+    #docu_number=int(len(document_id)/number)
+    #divide the file based on the document id
+    divided_document={}
+    #initilize the dict
+    for ii in range(number):
+        divided_document[ii]=[]
+    for jj in range(len(document_id)):
+        docu_index=jj%number
+        divided_document[docu_index].append(document_id[jj])
 
+    for ii in range(number):
+        print(divided_document[ii])
+
+    for i in range(number):
+        file_object=codecs.open(output_folder+"fold"+str(i+1)+".txt",'w+',encoding='utf8')
+        for j in range(len(file_dict)):
+            #print(index_list[j],'-',len(file_dict))
+            info=file_dict[index_list[j]].split(' ')
+            #print(info)
+            if info[1] in divided_document[i]:
+                file_object.write(file_dict[index_list[j]])
+                file_object.write('\n')
+        file_object.close()
+
+
+def randomize_file(filename,output_folder):
+    file_dict={}
+    count_line=0
+    document_id=[]
+    with codecs.open(filename, encoding='utf8') as f:
+        for line in tqdm(f):
+            file_dict[count_line] = line.strip()
+            count_line+=1
+    index_list=list(range(len(file_dict)))
+    random.shuffle(index_list)
+    #write into the new file
+    file_object=codecs.open(output_folder+"Randomized.txt",'w+',encoding='utf8')
+    for j in range(len(file_dict)):
+      file_object.write(file_dict[index_list[j]])
+      file_object.write('\n')
+    file_object.close()
 
 
 if __name__ == '__main__':
 
-    #build_dataset('./data/aimed_test.txt','./data/aimed_test.tfrecord')
-    #random_and_divide_file('./data/aimed.txt','./data/')
-
+    #randomize the data and divide the file
+    #random_and_divide_file('./data/aimed.txt','./data/',10)
+    '''
     for ii in range(10):
         filename1='data/fold'+str(ii+1)+'.txt'
         filename2='data/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
         print(filename1)
         build_tfrecord_data(filename1,filename2)
+    '''
+    #build the data from distant supervision
+    #randomize_file('./data/train_filtered.txt','./data/')
+    build_tfrecord_data('data/Randomized.txt','data/Randomized.tfrecords')
