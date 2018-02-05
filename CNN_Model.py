@@ -342,10 +342,11 @@ if __name__ == '__main__':
     rec, rec_op = tf.metrics.recall(labels=tf.argmax(y_, 1), predictions=y_p)
     pre, pre_op = tf.metrics.precision(labels=tf.argmax(y_, 1), predictions=y_p) 
     
-    cross_validation=1
+    cross_validation=10
     #train_and_save_parameters=False
     saver=tf.train.Saver(tf.global_variables())
     with tf.Session() as sess:
+        '''
         #train the model with the data from distant supervision
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
@@ -373,15 +374,16 @@ if __name__ == '__main__':
         print(iteration_error)
         #save the global variable
         saver.save(sess,"model/model.ckpt")
+        '''
         for c in range(cross_validation):
             print("dataset %d as the test dataest"%c)
             #initialize everything to start again
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
-            saver.restore(sess,"model/model.ckpt")
+            #saver.restore(sess,"model/model.ckpt")
             #record the cross entropy each step during training
             iteration_error=[]
-            for i in range(10):
+            for i in range(250):
 
                 step_error=0
                 batch_num=1
@@ -402,13 +404,14 @@ if __name__ == '__main__':
                 print("Epoch error:",step_error)
             print("Error change:")
             print(iteration_error)
+            '''
             plt.figure()
             plt.plot(range(len(iteration_error)), iteration_error,linewidth=2)
             plt.title('Loss function', fontsize=20)
             plt.xlabel('Epoch Time', fontsize=16)
             plt.ylabel('Loss', fontsize=16)
             plt.show()
-
+            '''
             #calculate the training F score
             y_pred_training=[]
             y_true_training=[]
@@ -456,6 +459,6 @@ if __name__ == '__main__':
                 #print("accuracy ", v)
                 #print("recall ", r)
                 #print("precision ", p)
-            sess.run(tf.global_variables_initializer())
-            sess.run(tf.local_variables_initializer())
-            saver.restore(sess,"model/model.ckpt")
+            #sess.run(tf.global_variables_initializer())
+            #sess.run(tf.local_variables_initializer())
+            #saver.restore(sess,"model/model.ckpt")
