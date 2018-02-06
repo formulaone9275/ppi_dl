@@ -271,9 +271,9 @@ def pad_and_prune_seq(seq, max_len, padding):
 
 def build_dataset(filename, target):
     data, labels = load_sentence_matrix(filename)
-    print(target)
+    #print(target)
     sent_data, head_data = data
-    print(sent_data)
+    #(sent_data)
     sent_mx, max_sent_len, sent_padding = sent_data
     head_mx, max_head_len, head_padding = head_data
     #dep_mx, max_dep_len, dep_padding = dep_data
@@ -413,14 +413,15 @@ def randomize_file(filename,output_folder):
 if __name__ == '__main__':
 
     #randomize the data and divide the file
-    #random_and_divide_file('./data/aimed.txt','./data/',10)
-    '''
-    for ii in range(10):
-        filename1='data/fold'+str(ii+1)+'.txt'
-        filename2='data/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
-        print(filename1)
-        build_tfrecord_data(filename1,filename2)
-    '''
+    for jj in range(10):
+        random_and_divide_file('./data/aimed.txt','./data/model'+str(jj+1)+'/',10)
+
+        for ii in range(10):
+            filename1='data/model'+str(jj+1)+'/fold'+str(ii+1)+'.txt'
+            filename2='data/model'+str(jj+1)+'/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
+            print(filename1)
+            build_tfrecord_data(filename1,filename2)
+
     #build the data from distant supervision
     #randomize_file('./data/train_filtered.txt','./data/')
-    build_tfrecord_data('data/Randomized.txt','data/Randomized.tfrecords')
+    #build_tfrecord_data('data/Randomized.txt','data/Randomized.tfrecords')
