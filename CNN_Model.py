@@ -215,7 +215,7 @@ def iter_sent_dataset(sess, filename,  batch_size, shuffle=True,cv=0,test=True):
             break
         
 class CNNModel(object):
-    def __init(self,model_index):
+    def __init__(self,model_index):
         self.cv=True
         self.model_index=model_index
         #self.training_data_file=training_data_file
@@ -276,12 +276,12 @@ class CNNModel(object):
         cross_entropy = tf.reduce_mean(
             tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=logits))
         train_step = tf.train.AdamOptimizer(7e-4).minimize(cross_entropy)
-        y_p = tf.argmax(y, 1)
-        y_t = tf.argmax(self.y_, 1)
+        self.y_p = tf.argmax(y, 1)
+        self.y_t = tf.argmax(self.y_, 1)
         #calculate the precision, recall and F score
-        acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(self.y_, 1), predictions=y_p)
-        rec, rec_op = tf.metrics.recall(labels=tf.argmax(self.y_, 1), predictions=y_p)
-        pre, pre_op = tf.metrics.precision(labels=tf.argmax(self.y_, 1), predictions=y_p)
+        acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(self.y_, 1), predictions=self.y_p)
+        rec, rec_op = tf.metrics.recall(labels=tf.argmax(self.y_, 1), predictions=self.y_p)
+        pre, pre_op = tf.metrics.precision(labels=tf.argmax(self.y_, 1), predictions=self.y_p)
         self.train_step=train_step
         self.cross_entropy=cross_entropy
 
