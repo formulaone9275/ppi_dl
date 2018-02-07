@@ -213,13 +213,36 @@ def iter_sent_dataset(sess, filename,  batch_size, shuffle=True,cv=0,test=True):
             yield sent_mx, labels
         except tf.errors.OutOfRangeError:
             break
-        
+
+def iter_sent_dataset_pretrain(sess, filename,  batch_size, shuffle=True):
+    ph_files = tf.placeholder(tf.string, shape=[None])
+    dataset = tf.data.TFRecordDataset(ph_files)
+    dataset = dataset.map(_sent_parse_func, num_parallel_calls=8)
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=10000)
+    dataset = dataset.batch(batch_size)
+    files_all = glob(filename)
+
+    #random.shuffle(files)
+    iterator = dataset.make_initializable_iterator()
+    next_element = iterator.get_next()
+    sess.run(iterator.initializer,{ph_files: files_all})
+
+    while True:
+        try:
+            batch = sess.run(next_element)
+            #sess.run(ph_files,{ph_files: files})
+            sent_mx, labels = batch
+            yield sent_mx, labels
+        except tf.errors.OutOfRangeError:
+            break
 class CNNModel(object):
     def __init__(self,model_index):
         self.cv=True
         self.model_index=model_index
         self.saver=tf.train.Saver(tf.global_variables())
         self.sess=tf.Session()
+        self.pretrain_indicator=True
         #self.training_data_file=training_data_file
         #self.test_data_file=test_data_file
 
@@ -296,7 +319,7 @@ class CNNModel(object):
 
             step_error=0
             batch_num=1
-            for batch_data in iter_sent_dataset(self.sess, 'data/aimed_cross_validataion*.tfrecords', 128,True,0,False):
+            for batch_data in iter_sent_dataset_pretrain(self.sess, 'data/pretrain/aimed_pretrain*.tfrecords', 128,True):
 
                 input_data,label_list=batch_data
                 #train the model
@@ -329,7 +352,8 @@ class CNNModel(object):
             #initialize everything to start again
             self.sess.run(tf.global_variables_initializer())
             self.sess.run(tf.local_variables_initializer())
-            self.saver.restore(self.sess,"model/model.ckpt")
+            if self.pretrain_indicator=True:
+                self.saver.restore(self.sess,"model/model.ckpt")
             #record the cross entropy each step during training
             iteration_error=[]
             for i in range(250):
