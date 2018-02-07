@@ -240,7 +240,7 @@ class CNNModel(object):
     def __init__(self,model_index):
         self.cv=True
         self.model_index=model_index
-        self.saver=tf.train.Saver(tf.global_variables())
+
         self.sess=tf.Session()
         self.pretrain_indicator=True
         #self.training_data_file=training_data_file
@@ -310,7 +310,7 @@ class CNNModel(object):
         self.train_step=train_step
         self.cross_entropy=cross_entropy
     def pretrain(self):
-
+        self.saver=tf.train.Saver(tf.global_variables())
         #train the model with the data from distant supervision
         self.sess.run(tf.global_variables_initializer())
         self.sess.run(tf.local_variables_initializer())
@@ -319,13 +319,13 @@ class CNNModel(object):
 
             step_error=0
             batch_num=1
-            for batch_data in iter_sent_dataset_pretrain(self.sess, 'data/pretrain/aimed_pretrain*.tfrecords', 128,True):
+            for batch_data in iter_sent_dataset_pretrain(self.sess, 'data/pretrain/test/aimed_pretrain*.tfrecords', 128,True):
 
                 input_data,label_list=batch_data
                 #train the model
-                self.train_step.run(feed_dict={self.x: input_data, self.y_: label_list, self.keep_prob: 0.5,self.IsTraining:True})
+                self.train_step.run(session=self.sess,feed_dict={self.x: input_data, self.y_: label_list, self.keep_prob: 0.5,self.IsTraining:True})
                 #calculate the cross entropy for this small step
-                ce = self.cross_entropy.eval(feed_dict={
+                ce = self.cross_entropy.eval(session=self.sess,feed_dict={
                     self.x: input_data, self.y_: label_list, self.keep_prob: 0,self.IsTraining:False})
                 if batch_num%10==0:
                     print('Epoch %d, batch %d, cross_entropy %g' % (i+1,batch_num, ce),)
@@ -352,7 +352,7 @@ class CNNModel(object):
             #initialize everything to start again
             self.sess.run(tf.global_variables_initializer())
             self.sess.run(tf.local_variables_initializer())
-            if self.pretrain_indicator=True:
+            if self.pretrain_indicator==True:
                 self.saver.restore(self.sess,"model/model.ckpt")
             #record the cross entropy each step during training
             iteration_error=[]
@@ -419,5 +419,6 @@ if __name__ == '__main__':
     for i in range(5):
         Model=CNNModel(i+1)
         Model.build()
-        Model.train()
-        del Model
+        Model.pretrain()
+        #Model.train()
+        #del Model
