@@ -7,6 +7,7 @@ import sklearn as sk
 from glob import glob
 from sklearn.metrics import precision_score, recall_score,f1_score,accuracy_score
 import matplotlib.pyplot as plt
+import pickle
 
 def _float_feature(value):
     return tf.train.Feature(float_list=tf.train.FloatList(value=value))
@@ -194,6 +195,7 @@ def iter_sent_dataset(sess, filename,  batch_size, shuffle=True,cv=0,test=True):
     if test:
         files = glob(files_all[cv])
         #print(files)
+        #print(files)
     else:
         del files_all[cv]
         files=files_all
@@ -237,12 +239,17 @@ def iter_sent_dataset_pretrain(sess, filename,  batch_size, shuffle=True):
         except tf.errors.OutOfRangeError:
             break
 class CNNModel(object):
-    def __init__(self,model_index):
-        self.cv=True
-        self.model_index=model_index
 
+    def __init__(self,model_index,ckpt_file_path,tfrecords_file_path,tfrecords_file_path_pretrain):
+        self.cv=10
+        self.model_index=model_index
+        self.ckpt_file_path=ckpt_file_path
+        self.tfrecords_file_path=tfrecords_file_path
+        self.tfrecords_file_path_pretrain=tfrecords_file_path_pretrain
         self.sess=tf.Session()
-        self.pretrain_indicator=True
+        self.pretrained_indicator=False
+        self.cv_indicator=False
+        self.f1_score=[]
         #self.training_data_file=training_data_file
         #self.test_data_file=test_data_file
 
@@ -252,8 +259,8 @@ class CNNModel(object):
         self.y_ = tf.placeholder(tf.float32, shape=[None, 2])
 
         x1,x2=tf.split(self.x,num_or_size_splits=2,axis=1)
-        print(x1.get_shape())
-        print(x2.get_shape())
+        #print(x1.get_shape())
+        #print(x2.get_shape())
         # Convolutional Layer #11
         conv11 = tf.layers.conv2d(
             inputs=tf.expand_dims(x1,axis=3),
@@ -280,7 +287,7 @@ class CNNModel(object):
         pool12 = tf.layers.max_pooling2d(inputs=conv12, pool_size=[158,1], strides=1)
 
         pools=tf.concat([pool11,pool12],axis=1)
-        print(pools.get_shape())
+        #print(pools.get_shape())
         # Dense Layer
         pool2_flat = tf.reshape(pools, [-1, 800])
         #
@@ -309,17 +316,20 @@ class CNNModel(object):
         pre, pre_op = tf.metrics.precision(labels=tf.argmax(self.y_, 1), predictions=self.y_p)
         self.train_step=train_step
         self.cross_entropy=cross_entropy
-    def pretrain(self):
         self.saver=tf.train.Saver(tf.global_variables())
+
+
+    def pretrain(self):
+
         #train the model with the data from distant supervision
         self.sess.run(tf.global_variables_initializer())
         self.sess.run(tf.local_variables_initializer())
         iteration_error=[]
-        for i in range(10):
+        for i in range(200):
 
             step_error=0
             batch_num=1
-            for batch_data in iter_sent_dataset_pretrain(self.sess, 'data/pretrain/test/aimed_pretrain*.tfrecords', 128,True):
+            for batch_data in iter_sent_dataset_pretrain(self.sess, self.tfrecords_file_path_pretrain+"aimed_pretrain*.tfrecords", 128,False):
 
                 input_data,label_list=batch_data
                 #train the model
@@ -334,10 +344,16 @@ class CNNModel(object):
                 batch_num+=1
             iteration_error.append(step_error)
             print("Epoch error:",step_error)
+            #save the global variable
+            if (i+1)%10==0:
+                self.saver.save(self.sess,self.ckpt_file_path+"model_step"+str(i+1)+".ckpt")
+                self.test()
+
         print("Error change:")
         print(iteration_error)
-        #save the global variable
-        self.saver.save(self.sess,"model/model.ckpt")
+        with open('./data/pickle_file/baseline/f_score_pretrain.pickle', 'wb') as f:
+            # Pickle the 'data' dictionary using the highest protocol available.
+            pickle.dump(self.f1_score, f, pickle.HIGHEST_PROTOCOL)
 
 
     def train(self):
@@ -347,20 +363,23 @@ class CNNModel(object):
         #with tf.Session() as sess:
 
         self.over_all_f_score=[]
+        self.f_score_steps=[]
         for c in range(cross_validation):
             print("dataset %d as the test dataest"%c)
             #initialize everything to start again
             self.sess.run(tf.global_variables_initializer())
             self.sess.run(tf.local_variables_initializer())
-            if self.pretrain_indicator==True:
-                self.saver.restore(self.sess,"model/model.ckpt")
+            if self.pretrained_indicator==True:
+                self.saver.restore(self.sess,self.ckpt_file_path+"model.ckpt")
+            #record the steps f score
+            self.f_score_steps.append([])
             #record the cross entropy each step during training
             iteration_error=[]
-            for i in range(250):
+            for i in range(50):
 
                 step_error=0
                 batch_num=1
-                for batch_data in iter_sent_dataset(self.sess, 'data/model'+str(self.model_index)+'/aimed_cross_validataion*.tfrecords', 128,True,c,False):
+                for batch_data in iter_sent_dataset(self.sess, self.tfrecords_file_path+"aimed_cross_validataion*.tfrecords", 128,False,c,False):
 
                     input_data,label_list=batch_data
                     #train the model
@@ -375,20 +394,25 @@ class CNNModel(object):
                     batch_num+=1
                 iteration_error.append(step_error)
                 print("Epoch %d, Cross entropy:%g"%(i+1,step_error))
-            #print("Error change:")
-            #print(iteration_error)
-            '''
-            plt.figure()
-            plt.plot(range(len(iteration_error)), iteration_error,linewidth=2)
-            plt.title('Loss function', fontsize=20)
-            plt.xlabel('Epoch Time', fontsize=16)
-            plt.ylabel('Loss', fontsize=16)
-            plt.show()
-            '''
+                if i%10==0:
+                    y_pred=[]
+                    y_true=[]
+                    for batch_data in iter_sent_dataset(self.sess, self.tfrecords_file_path+"aimed_cross_validataion*.tfrecords", 128,True,c,True):
+                        input_data_all_test,label_list_test=batch_data
+                        #one way to calculate precision recall F score
+                        y_pred+=list(self.y_p.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
+                        y_true+=list(self.y_t.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
+
+                    print("Accuracy of steps:", sk.metrics.accuracy_score(y_true, y_pred))
+                    print("Precision of steps:", sk.metrics.precision_score(y_true, y_pred))
+                    print("Recall of steps:", sk.metrics.recall_score(y_true, y_pred))
+                    print("f1_score of steps:", sk.metrics.f1_score(y_true, y_pred))
+                    self.f_score_steps[c].append(sk.metrics.f1_score(y_true, y_pred))
+
             #calculate the training F score
             y_pred_training=[]
             y_true_training=[]
-            for batch_data in iter_sent_dataset(self.sess, 'data/model'+str(self.model_index)+'/aimed_cross_validataion*.tfrecords', 128,True,c,False):
+            for batch_data in iter_sent_dataset(self.sess, self.tfrecords_file_path+"aimed_cross_validataion*.tfrecords", 128,False,c,False):
                 input_data_training,label_list_training=batch_data
                 #one way to calculate precision recall F score
                 y_pred_training+=list(self.y_p.eval(session=self.sess,feed_dict={self.x: input_data_training, self.y_: label_list_training, self.keep_prob: 0,self.IsTraining:False}))
@@ -402,7 +426,7 @@ class CNNModel(object):
 
             y_pred=[]
             y_true=[]
-            for batch_data in iter_sent_dataset(self.sess, 'data/model'+str(self.model_index)+'/aimed_cross_validataion*.tfrecords', 128,True,c,True):
+            for batch_data in iter_sent_dataset(self.sess, self.tfrecords_file_path+"aimed_cross_validataion*.tfrecords", 128,True,c,True):
                 input_data_all_test,label_list_test=batch_data
                 #one way to calculate precision recall F score
                 y_pred+=list(self.y_p.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
@@ -413,12 +437,99 @@ class CNNModel(object):
             print("Recall", sk.metrics.recall_score(y_true, y_pred))
             print("f1_score", sk.metrics.f1_score(y_true, y_pred))
             self.over_all_f_score.append(sk.metrics.f1_score(y_true, y_pred))
+        print("F scores:",self.over_all_f_score)
         print("Final F score:",sum(self.over_all_f_score)/len(self.over_all_f_score))
+        print(self.f_score_steps)
+        print("F score trend every 10 steps:")
+        temp_f_score_steps=[]
+        for jj in range(len(self.f_score_steps[0])):
+            temp=0
+            for ii in range(len(self.f_score_steps)):
+                temp+=self.f_score_steps[ii][jj]
+            temp_f_score_steps.append(temp/len(self.f_score_steps))
+        print(temp_f_score_steps)
+
+        with open('./data/pickle_file/f_score_steps_training.pickle', 'wb') as f:
+            # Pickle the 'data' dictionary using the highest protocol available.
+            pickle.dump(self.f_score_steps, f, pickle.HIGHEST_PROTOCOL)
+
+
+    def test(self):
+        #initialize everything to start again
+        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.local_variables_initializer())
+        if self.pretrained_indicator==True:
+            self.saver.restore(self.sess,self.ckpt_file_path+"model.ckpt")
+
+        if self.cv==0:
+            y_pred=[]
+            y_true=[]
+            for batch_data in iter_sent_dataset_pretrain(self.sess, self.tfrecords_file_path+"aimed_cross_validataion*.tfrecords", 128,True):
+                input_data_all_test,label_list_test=batch_data
+                #one way to calculate precision recall F score
+                y_pred+=list(self.y_p.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
+                y_true+=list(self.y_t.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
+            #print("y_pred:",y_pred)
+            #print("y_true:",y_true)
+            print("Accuracy", sk.metrics.accuracy_score(y_true, y_pred))
+            print("Precision", sk.metrics.precision_score(y_true, y_pred))
+            print("Recall", sk.metrics.recall_score(y_true, y_pred))
+            print("f1_score", sk.metrics.f1_score(y_true, y_pred))
+        else:
+            cv_f_score=[]
+            for ii in range(self.cv):
+                y_pred=[]
+                y_true=[]
+                for batch_data in iter_sent_dataset(self.sess, self.tfrecords_file_path+"aimed_cross_validataion*.tfrecords", 128,True,ii,True):
+                    input_data_all_test,label_list_test=batch_data
+                    #one way to calculate precision recall F score
+                    y_pred+=list(self.y_p.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
+                    y_true+=list(self.y_t.eval(session=self.sess,feed_dict={self.x: input_data_all_test, self.y_: label_list_test, self.keep_prob: 0,self.IsTraining:False}))
+                #print("y_pred:",y_pred)
+                #print("y_true:",y_true)
+                print("Accuracy", sk.metrics.accuracy_score(y_true, y_pred))
+                print("Precision", sk.metrics.precision_score(y_true, y_pred))
+                print("Recall", sk.metrics.recall_score(y_true, y_pred))
+                print("f1_score", sk.metrics.f1_score(y_true, y_pred))
+                cv_f_score.append(sk.metrics.f1_score(y_true, y_pred))
+            self.f1_score.append(cv_f_score)
+
+    def show_pretrain_figure(self):
+        for ii in range(self.cv):
+            fold_f_score=[]
+            for jj in range(len(self.f1_score)):
+                fold_f_score.append(self.f1_score[jj][ii])
+            plt.figure()
+            plt.plot(range(len(fold_f_score)), fold_f_score,linewidth=2)
+            plt.title('F score change of fold'+str(ii), fontsize=20)
+            plt.xlabel('Epoch Time', fontsize=16)
+            plt.ylabel('Loss', fontsize=16)
+            plt.show()
+        over_all_f_score=[]
+        for jjk in range(len(self.f1_score)):
+            over_all_f_score.append(sum(self.f1_score[jjk]).len(self.f1_score[jjk]))
+
+        plt.figure()
+        plt.plot(range(len(over_all_f_score)), over_all_f_score,linewidth=2)
+        plt.title('Overall F score', fontsize=20)
+        plt.xlabel('Epoch Time', fontsize=16)
+        plt.ylabel('Loss', fontsize=16)
+        plt.show()
+
+
 
 if __name__ == '__main__':
-    for i in range(5):
-        Model=CNNModel(i+1)
+
+    pretrained=False
+    ckpt_file_path="./model/baseline/"
+    tfrecords_file_path="data/model5/"
+    tfrecords_file_path_pretrain="data/pretrain/baseline/"
+    for i in range(4,5):
+        print("Model "+str(i+1))
+        Model=CNNModel(i+1,ckpt_file_path,tfrecords_file_path,tfrecords_file_path_pretrain)
         Model.build()
-        Model.pretrain()
-        #Model.train()
-        #del Model
+        if not pretrained:
+            Model.pretrain()
+        Model.show_pretrain_figure()
+        del Model
+
