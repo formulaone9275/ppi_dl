@@ -1,6 +1,5 @@
 from __future__ import print_function
 import codecs
-from tqdm import tqdm
 from word_embedding import VOCAB,EMBEDDING
 import tensorflow as tf
 import numpy as np
@@ -117,7 +116,7 @@ def map_to_index(token):
     try:
         return VOCAB[token]
     except KeyError:
-        return 0
+        return 1
 
 def encode_entity_type(ent_type, other_encoding):
     if ent_type == 'O':
@@ -133,11 +132,11 @@ def encode_entity_type(ent_type, other_encoding):
         return [0, 0, 0, 1]
 
 DEP_RELATION_VOCAB = {}
-with codecs.open('dep_relation_count.txt', 'r', encoding='utf8') as f:
+with codecs.open('dep_relation_count_new.txt', 'r', encoding='utf8') as f:
     for line in f:
         relation, count = line.strip().split()
         count = int(count)
-        if count < 5:
+        if count < 0:
             break
         DEP_RELATION_VOCAB[relation] = len(DEP_RELATION_VOCAB) + 1
 DEP_RELATION_VOCAB_SIZE = len(DEP_RELATION_VOCAB)+1
@@ -157,7 +156,7 @@ def read_sentences(filename):
     count = 0
 
     with codecs.open(filename, encoding='utf8') as f:
-        for line in tqdm(f):
+        for line in f:
             count += 1
 
             line = line.strip()
@@ -207,18 +206,22 @@ def sentence_matrix(sentences,
         sent_mx = []
         for word, pos, ent_type, to_e1, to_e2, dep_labels in sent:
             token_count += 1
-            if mask_p1p2 and (ent_type == 'P1' or ent_type == 'P2'):
+            if mask_p1p2 and ent_type == 'PROT1':
+                #print(word)
                 word = '_PROTEIN_'
-            if mask_other and ent_type == 'P':
+            if mask_p1p2 and ent_type == 'PROT2':
+                #print(word)
                 word = '_PROTEIN_'
+            if mask_other and ent_type == 'PROT':
+                word = '_ENTITY_'
             index = map_to_index(word)
 
-            if index == 0:
+            if index == 1:
                 missing_embed += 1
                 word = [rewriteu2a.mapchar(c, U2A_MAPPING) for c in word]
                 word = ''.join(word)
                 index = map_to_index(word)
-                if index == 0:
+                if index == 1:
                     missing_mapped += 1
             encoded_pos = encode_pos(pos)
             encoded_ent = encode_entity_type(ent_type, other_encoding)
@@ -300,8 +303,14 @@ def _float_feature(value):
 
 def build_tfrecord_data(filename,target_filename):
     input_data,label=build_dataset(filename, target_filename)
-    print(np.shape(input_data))
-    #print(label[0:100])
+    with codecs.open('./data/model5/results.txt','w+', encoding='utf8') as f:
+        for ii in range(len(input_data[0])):
+            for jj in range(len(input_data[0][ii])):
+                f.write(str(input_data[0][ii][jj]))
+                f.write(' ')
+            f.write('\n')
+    f.close()
+    print(label)
     #concantenate the embedding vector
     input_data_all=[]
     label_list=[]
@@ -336,7 +345,7 @@ def random_and_divide_file_v0(filename,output_folder,number):
     count_line=0
 
     with codecs.open(filename, encoding='utf8') as f:
-        for line in tqdm(f):
+        for line in f:
             file_dict[count_line] = line.strip()
 
             count_line+=1
@@ -357,7 +366,7 @@ def random_and_divide_file(filename,output_folder,number):
     count_line=0
     document_id=[]
     with codecs.open(filename, encoding='utf8') as f:
-        for line in tqdm(f):
+        for line in f:
             file_dict[count_line] = line.strip()
             line_spilt=line.strip().split(' ')
             if line_spilt[1] not in document_id:
@@ -391,13 +400,33 @@ def random_and_divide_file(filename,output_folder,number):
                 file_object.write('\n')
         file_object.close()
 
+def count_neg_pos_instance(filename):
+    count_dict={}
+    document_id=[]
+    with codecs.open(filename, encoding='utf8') as f:
+        for line in f:
+            line_spilt=line.strip().split(' ')
+            if line_spilt[1] not in document_id:
+                document_id.append(line_spilt[1])
+            if line_spilt[1] not in count_dict.keys() and line_spilt[0].startswith('Positive'):
+                count_dict[line_spilt[1]]=[1,0]
+            elif line_spilt[1] not in count_dict.keys() and line_spilt[0].startswith('Negative'):
+                count_dict[line_spilt[1]]=[0,1]
+            elif line_spilt[0].startswith('Positive'):
+                count_dict[line_spilt[1]][0]+=1
+            elif line_spilt[0].startswith('Negative'):
+                count_dict[line_spilt[1]][1]+=1
+
+
+    for ii in range(len(document_id)):
+        print(document_id[ii],count_dict[document_id[ii]])
 
 def randomize_file(filename,output_folder):
     file_dict={}
     count_line=0
     document_id=[]
     with codecs.open(filename, encoding='utf8') as f:
-        for line in tqdm(f):
+        for line in f:
             file_dict[count_line] = line.strip()
             count_line+=1
     index_list=list(range(len(file_dict)))
@@ -413,15 +442,27 @@ def randomize_file(filename,output_folder):
 if __name__ == '__main__':
 
     #randomize the data and divide the file
-    for jj in range(10):
-        random_and_divide_file('./data/aimed.txt','./data/model'+str(jj+1)+'/',10)
+    for file_name in ['baseline','CP','CP_TW']:
 
-        for ii in range(10):
-            filename1='data/model'+str(jj+1)+'/fold'+str(ii+1)+'.txt'
-            filename2='data/model'+str(jj+1)+'/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
+        random_and_divide_file_v0('./data/pretrain/train_'+file_name+'.txt','./data/pretrain/'+file_name+'/',100)
+
+        for ii in range(100):
+            filename1='data/pretrain/'+file_name+'/fold'+str(ii+1)+'.txt'
+            filename2='data/pretrain/'+file_name+'/aimed_pretrain'+str(ii+1)+'.tfrecords'
             print(filename1)
             build_tfrecord_data(filename1,filename2)
 
+'''
+    random_and_divide_file_v0('./data/aimed_test.txt','./data/test/',10)
+    
+    for ii in range(10):
+        filename1='data/test/fold'+str(ii+1)+'.txt'
+        filename2='data/test/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
+        print(filename1)
+        build_tfrecord_data(filename1,filename2)
+'''
+    #build_tfrecord_data('./data/model5/fold_test.txt','data/model5/aimed_cross_validataion_test.tfrecords')
     #build the data from distant supervision
     #randomize_file('./data/train_filtered.txt','./data/')
     #build_tfrecord_data('data/Randomized.txt','data/Randomized.tfrecords')
+    #count_neg_pos_instance('./data/aimed.txt')
