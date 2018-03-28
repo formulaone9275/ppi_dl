@@ -419,7 +419,7 @@ class CNNModel(object):
                 #calculate the cross entropy for this small step
                 ce = self.cross_entropy.eval(session=self.sess,feed_dict={
                     self.x: input_data, self.y_: label_list, self.keep_prob: 0.5,self.IsTraining:False,self.keep_prob_dense:0.2})
-                if batch_num%10==0:
+                if batch_num%100==0:
                     print('Epoch %d, batch %d, cross_entropy %g' % (i+1,batch_num, ce),)
 
                 step_error+=ce
@@ -535,8 +535,8 @@ class CNNModel(object):
                 iteration_error.append(step_error)
                 print("Epoch %d, Cross entropy:%g"%(i+1,step_error))
 
-                if (i+1)%50==0:
-                    self.saver.save(self.sess,self.ckpt_file_path+"model_train_step"+str(i+1)+"_fold"+str(c+1)+".ckpt")
+                if (i+1)%25==0:
+                    self.saver.save(self.sess,self.ckpt_file_path+'model_'+pickle_file_pretrain_indicator+'_train_step'+str(i+1)+'_fold'+str(c+1)+'.ckpt')
                     self.test(c)
 
             #calculate the training F score

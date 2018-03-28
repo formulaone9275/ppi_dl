@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import pickle
 from joblib import Parallel, delayed
 import multiprocessing
+from tqdm import tqdm
 
 def _float_feature(value):
     return tf.train.Feature(float_list=tf.train.FloatList(value=value))
@@ -500,7 +501,7 @@ class CNNModel(object):
             self.train_f_score=[]
             #make sure the pickle name are different for pretrained and not pretrained
             pickle_file_pretrain_indicator=''
-            for c in range(cross_validation):
+            for c in tqdm(range(cross_validation)):
                 print("dataset %d as the test dataest"%c)
                 #initialize everything to start again
                 self.sess.run(tf.global_variables_initializer())
@@ -536,7 +537,7 @@ class CNNModel(object):
                         step_error+=ce
                         batch_num+=1
                     iteration_error.append(step_error)
-                    print("Epoch %d, Cross entropy:%g"%(i+1,step_error))
+                    #print("Epoch %d, Cross entropy:%g"%(i+1,step_error))
 
                     if (i+1)%25==0:
                         self.saver.save(self.sess,self.ckpt_file_path+'model_'+pickle_file_pretrain_indicator+'_train_step'+str(i+1)+'_fold'+str(c+1)+'.ckpt')
@@ -818,7 +819,7 @@ def build_model(folder_name,fold_index):
 
 if __name__ == '__main__':
     cv=10
-    for folder_name in ['filtered_train']:
+    for folder_name in ['CP_TW']:
         num_cores = multiprocessing.cpu_count()
         print(num_cores)
 
