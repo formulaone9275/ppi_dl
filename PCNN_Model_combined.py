@@ -127,9 +127,9 @@ class CNNContextModel(object):
         self.min_window = FLAGS.min_window
         self.max_window = FLAGS.max_window
         self.l2_reg = FLAGS.l2_reg
-        self.lr = FLAGS.lr
-        self.lr_decay_step = FLAGS.decay_step
-        self.lr_decay_rate = FLAGS.decay_rate
+        self.lr = 1e-3
+        self.lr_decay_step = 200
+        self.lr_decay_rate = 0.9
         self.use_dep = FLAGS.use_dep
         self.regularizer = tf.contrib.layers.l2_regularizer(scale=self.l2_reg)
 
@@ -415,17 +415,19 @@ class CNNContextModel(object):
 
 
 class Train(object):
-    def __init__(self,folder_name='test'):
+    def __init__(self,folder_name='test',sub_folder='test'):
         FLAGS = tf.app.flags.FLAGS
         self.log_dir = FLAGS.log_dir
         self.batch_size = FLAGS.batch_size
-        self.epoch = FLAGS.epoch
-        self.drop_rate = FLAGS.drop_rate
-        self.drop_rate_dense = FLAGS.drop_rate_dense
-        self.save_model = FLAGS.save_model
+        self.epoch = 30
+        self.drop_rate = 0.5
+        self.drop_rate_dense = 0.2
+        self.save_model = True
         self.name = FLAGS.name
-        self.dev_f_score=[]
+        self.dev1_f_score=[]
+        self.dev2_f_score=[]
         self.folder_name=folder_name
+        self.sub_folder=sub_folder
 
     def add_summary(self):
         tf.summary.scalar('precision', self.model.precision)
@@ -466,7 +468,10 @@ class Train(object):
             self.test_writer.add_summary(s, step)
         print('{}: prec {}, recall {}, fscore {}, loss {}'.format(
             name, p, r, f, l))
-        self.dev_f_score.append(f)
+        if name =='dev1':
+            self.dev1_f_score.append(f)
+        elif name=='dev2':
+            self.dev2_f_score.append(f)
 
     def train(self, train_data, eval_sets):
         with tf.Graph().as_default():
@@ -523,16 +528,21 @@ class Train(object):
                         if self.save_model and step % (self.batch_num*10)==0:
                             step_name=str(int(step/(self.batch_num)))
                             global_step = sess.run(model.global_step)
-                            path = saver.save(sess, 'model/'+self.folder_name+'/'+self.name+'_'+step_name)
+                            path = saver.save(sess, 'data/combined/'+self.folder_name+'/'+self.name+'_'+self.sub_folder+'_'+step_name)
 
                     step += 1
 
 
                 #save the f score of development set to choose epoch time
-                with open('model/'+self.folder_name+'/'+self.name+'.pickle', 'wb') as f:
+                with open('data/combined/'+self.folder_name+'/'+self.name+'_dev1_'+self.sub_folder+'.pickle', 'wb') as f:
                     # Pickle the 'data' dictionary using the highest protocol available.
-                    pickle.dump(self.dev_f_score, f, pickle.HIGHEST_PROTOCOL)
-                print(self.dev_f_score)
+                    pickle.dump(self.dev1_f_score, f, pickle.HIGHEST_PROTOCOL)
+                print(self.dev1_f_score)
+                #save the f score of development set to choose epoch time
+                with open('data/combined/'+self.folder_name+'/'+self.name+'_dev2_'+self.sub_folder+'.pickle', 'wb') as f:
+                    # Pickle the 'data' dictionary using the highest protocol available.
+                    pickle.dump(self.dev2_f_score, f, pickle.HIGHEST_PROTOCOL)
+                print(self.dev2_f_score)
     '''
     def show_train_figure(self):
         plt.figure()
@@ -548,12 +558,17 @@ if __name__ == '__main__':
 
     # distant data.
     for folder_name in ['baseline','CP','CP_TW','filtered']:
-        if tf.flags.FLAGS.model == 'pcnn':
-            train = Train(folder_name)
-            train.train('data/ds/'+folder_name+'/'+folder_name+'_train_*.tfrecords',
-                        [('dev', 'data/ds/'+folder_name+'_dev.tfrecords')])
-            #('train_dev', 'data/ds/filtered_train_dev.tfrecords'),
-            #('test', 'data_attn/{}_dev_cont.tfrecords'.format(DATASETS[RELATION]))])
+        for sub_folder in ['fold12','fold34','fold56','fold78','fold910']:
+            #get the dev test dataset index
+            dev1_index=sub_folder[4:5]
+            dev2_index=sub_folder[5:]
+            if tf.flags.FLAGS.model == 'pcnn':
+                train = Train(folder_name,sub_folder)
+                train.train('data/combined/'+folder_name+'/'+sub_folder+'/'+folder_name+'_combined_'+sub_folder+'_shuf_*.tfrecords',
+                            [('dev1', 'data/combined/model_instance/fold'+dev1_index+'.tfrecords'),
+                             ('dev2', 'data/combined/model_instance/fold'+dev2_index+'.tfrecords')])
+                #('train_dev', 'data/ds/filtered_train_dev.tfrecords'),
+                #('test', 'data_attn/{}_dev_cont.tfrecords'.format(DATASETS[RELATION]))])
 
 
 
