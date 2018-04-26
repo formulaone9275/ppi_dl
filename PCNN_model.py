@@ -379,13 +379,13 @@ class CNNContextModel(object):
         self.loss = tf.reduce_mean(all_loss, name='batch-loss')
 
         self.prob = tf.nn.softmax(logits)
-        pred = tf.argmax(self.prob, 1)
-        gold = tf.argmax(self.label_placeholder, 1)
-        tp = tf.logical_and(tf.cast(pred, tf.bool), tf.cast(gold, tf.bool))
-        fp = tf.logical_and(tf.cast(pred, tf.bool),
-                            tf.logical_not(tf.cast(gold, tf.bool)))
-        fn = tf.logical_and(tf.logical_not(tf.cast(pred, tf.bool)),
-                            tf.cast(gold, tf.bool))
+        self.pred = tf.argmax(self.prob, 1)
+        self.gold = tf.argmax(self.label_placeholder, 1)
+        tp = tf.logical_and(tf.cast(self.pred, tf.bool), tf.cast(self.gold, tf.bool))
+        fp = tf.logical_and(tf.cast(self.pred, tf.bool),
+                            tf.logical_not(tf.cast(self.gold, tf.bool)))
+        fn = tf.logical_and(tf.logical_not(tf.cast(self.pred, tf.bool)),
+                            tf.cast(self.gold, tf.bool))
         self.precision = tf.truediv(tf.reduce_sum(tf.cast(tp, tf.int32)),
                                     tf.reduce_sum(tf.cast(tf.logical_or(tp, fp), tf.int32)),
                                     name='precision')
@@ -547,6 +547,7 @@ class Train(object):
 if __name__ == '__main__':
 
     # distant data.
+    '''
     for folder_name in ['baseline','CP','CP_TW','filtered']:
         if tf.flags.FLAGS.model == 'pcnn':
             train = Train(folder_name)
@@ -554,6 +555,10 @@ if __name__ == '__main__':
                         [('dev', 'data/ds/'+folder_name+'_dev.tfrecords')])
             #('train_dev', 'data/ds/filtered_train_dev.tfrecords'),
             #('test', 'data_attn/{}_dev_cont.tfrecords'.format(DATASETS[RELATION]))])
-
-
+    '''
+    for folder_name in ['baseline','CP','CP_HP','HP']:
+        if tf.flags.FLAGS.model == 'pcnn':
+            train = Train(folder_name)
+            train.train('data/ds/'+folder_name+'/'+folder_name+'_train_*.tfrecords',
+                        [('dev', 'data/ds/'+folder_name+'_train_dev.tfrecords')])
 

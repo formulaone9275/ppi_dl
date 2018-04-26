@@ -8,7 +8,7 @@ from collections import OrderedDict, Counter
 import sklearn as sk
 from glob import glob
 from sklearn.metrics import precision_score, recall_score,f1_score,accuracy_score
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from flags import *
 import random
 
@@ -130,13 +130,15 @@ def encode_entity_type(ent_type, other_encoding):
         return [0, 0, 1, 0]
     elif ent_type == 'PROT2':
         return [0, 0, 0, 1]
+    elif ent_type == 'PROT12':
+        return [0, 0, 1, 1]
 
 DEP_RELATION_VOCAB = {}
-with codecs.open('dep_relation_count_new.txt', 'r', encoding='utf8') as f:
+with codecs.open('dep_relation_count.txt', 'r', encoding='utf8') as f:
     for line in f:
         relation, count = line.strip().split()
         count = int(count)
-        if count < 0:
+        if count < 5:
             break
         DEP_RELATION_VOCAB[relation] = len(DEP_RELATION_VOCAB) + 1
 DEP_RELATION_VOCAB_SIZE = len(DEP_RELATION_VOCAB)+1
@@ -212,6 +214,9 @@ def sentence_matrix(sentences,
             if mask_p1p2 and ent_type == 'PROT2':
                 #print(word)
                 word = '_PROTEIN_'
+            if mask_p1p2 and ent_type == 'PROT12':
+                #print(word)
+                word = '_PROTEIN_'
             if mask_other and ent_type == 'PROT':
                 word = '_ENTITY_'
             index = map_to_index(word)
@@ -228,12 +233,14 @@ def sentence_matrix(sentences,
             encoded_to_e1 = encode_distance(to_e1)
             encoded_to_e2 = encode_distance(to_e2)
             encoded_dep = get_dep_relation_rep(dep_labels)
-            '''print(index)
+            '''
+            print(index)
             print(encoded_ent)
             print(encoded_pos)
             print(encoded_to_e1)
             print(encoded_to_e2)
-            print(encoded_dep)'''
+            print(encoded_dep)
+            '''
             sent_mx.append([index] + encoded_ent + encoded_pos +
                            encoded_to_e1+encoded_to_e2+encoded_dep)
             #print(len(sent_mx[0]))
@@ -303,14 +310,14 @@ def _float_feature(value):
 
 def build_tfrecord_data(filename,target_filename):
     input_data,label=build_dataset(filename, target_filename)
-    with codecs.open('./data/model5/results.txt','w+', encoding='utf8') as f:
+    with codecs.open('./data/model_instance/results.txt','w+', encoding='utf8') as f:
         for ii in range(len(input_data[0])):
             for jj in range(len(input_data[0][ii])):
                 f.write(str(input_data[0][ii][jj]))
                 f.write(' ')
             f.write('\n')
     f.close()
-    print(label)
+    #print(label)
     #concantenate the embedding vector
     input_data_all=[]
     label_list=[]
@@ -440,11 +447,12 @@ def randomize_file(filename,output_folder):
 
 
 if __name__ == '__main__':
-
+    random_and_divide_file('./data/aimed.txt','./data/model_size/',4)
+    '''
     #randomize the data and divide the file
-    for file_name in ['baseline','CP','CP_TW']:
+    for file_name in ['baseline','CP','CP_TW','filtered']:
 
-        random_and_divide_file_v0('./data/pretrain/train_'+file_name+'.txt','./data/pretrain/'+file_name+'/',100)
+        random_and_divide_file_v0('./data/pretrain/'+file_name+'_shuf.txt','./data/pretrain/'+file_name+'/',100)
 
         for ii in range(100):
             filename1='data/pretrain/'+file_name+'/fold'+str(ii+1)+'.txt'
@@ -452,15 +460,16 @@ if __name__ == '__main__':
             print(filename1)
             build_tfrecord_data(filename1,filename2)
 
-'''
-    random_and_divide_file_v0('./data/aimed_test.txt','./data/test/',10)
-    
+
+    #random_and_divide_file_v0('./data/aimed.txt','./data/model_size/',3)
+    '''
+    '''
     for ii in range(10):
-        filename1='data/test/fold'+str(ii+1)+'.txt'
-        filename2='data/test/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
+        filename1='data/model_instance/fold'+str(ii+1)+'.txt'
+        filename2='data/model_instance/aimed_cross_validataion'+str(ii+1)+'.tfrecords'
         print(filename1)
         build_tfrecord_data(filename1,filename2)
-'''
+    '''
     #build_tfrecord_data('./data/model5/fold_test.txt','data/model5/aimed_cross_validataion_test.tfrecords')
     #build the data from distant supervision
     #randomize_file('./data/train_filtered.txt','./data/')

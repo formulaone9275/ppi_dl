@@ -266,6 +266,27 @@ def context_matrix(sentences):
 
     return matrix_left, matrix_middle, matrix_right
 
+def load_sentence_matrix(filename):
+    sentences, head_sents, dep_sents, sent_entity, labels = read_sentences(filename)
+    sent_mx = sentence_matrix(sentences)
+    head_mx = sentence_matrix(head_sents)
+    dep_mx = sentence_matrix(dep_sents, 10)
+    entity_mx = sentence_matrix(sent_entity)
+
+    return [[sent_mx, 160, [0] * 6],
+            [head_mx, 160, [0] * 6],
+            [dep_mx, 20, [0] * 6],
+            ], entity_mx, labels
+
+def load_sentence_matrix_v1(filename):
+    sentences, head_sents, dep_sents, sent_entity, labels = read_sentences(filename)
+    sent_mx = sentence_matrix(sentences)
+    head_mx = sentence_matrix(head_sents)
+    dep_mx = sentence_matrix(dep_sents, 10)
+    entity_mx = sentence_matrix(sent_entity)
+
+    return sent_mx, head_mx,dep_mx, entity_mx, labels
+
 
 def load_context_matrix(filename):
     sentences, head_sents, dep_sents, sent_entity, labels = read_sentences(filename)
@@ -323,6 +344,34 @@ def build_cont_dataset(filename, target):
         writer.write(example.SerializeToString())
     writer.close()
 
+def build_sent_dataset(filename, target):
+    data, entity_mx, labels = load_sentence_matrix(filename)
+    sent_data, head_data, dep_data = data
+
+    sent_mx, max_sent_len, sent_padding = sent_data
+    head_mx, max_head_len, head_padding = head_data
+    dep_mx, max_dep_len, dep_padding = dep_data
+
+    writer = tf.python_io.TFRecordWriter(target)
+    for sent, head, dep, entity, label in zip(
+            sent_mx, head_mx, dep_mx, entity_mx, labels):
+        sent, sent_len = pad_and_prune_seq(sent, max_sent_len, sent_padding)
+        head, head_len = pad_and_prune_seq(head, max_head_len, head_padding)
+        dep, dep_len = pad_and_prune_seq(dep, max_dep_len, dep_padding)
+
+        all_seq = np.concatenate((sent, head, dep), axis=0)
+        all_len = [sent_len, head_len, dep_len]
+
+        example = tf.train.Example(features=tf.train.Features(feature={
+            'seq': _float_feature(np.ravel(all_seq)),
+            'seq_len': _float_feature(all_len),
+            'entity': _float_feature(np.ravel(entity)),
+            'label': _float_feature(label),
+        }))
+
+        writer.write(example.SerializeToString())
+    writer.close()
+
 def create_tensor(data, max_len, padding):
     new_len = []
     new_instances = []
@@ -361,31 +410,41 @@ def split_tfrecord_file(filename, target, num_per_split):
 
 if __name__ == '__main__':
     print('test')
-    '''
-    for folder_name in ['baseline','CP','CP_TW','filtered']:
+
+    for folder_name in ['baseline','CP','CP_HP','HP']:
         for sub_folder in ['fold12','fold34','fold56','fold78','fold910']:
             build_cont_dataset('data/combined/'+folder_name+'/'+sub_folder+'/'+folder_name+'_combined_'+sub_folder+'_shuf.txt','data/combined/'+folder_name+'/'+sub_folder+'/'+folder_name+'_combined_'+sub_folder+'_shuf.tfrecords')
 
             split_tfrecord_file('data/combined/'+folder_name+'/'+sub_folder+'/'+folder_name+'_combined_'+sub_folder+'_shuf.tfrecords', 'data/combined/'+folder_name+'/'+sub_folder, 128)
 
-    '''
+   
     for sub_folder in ['fold1','fold2','fold3','fold4','fold5','fold6','fold7','fold8','fold9','fold10',]:
-        build_cont_dataset('data/combined/model_instance/'+sub_folder+'.txt','data/combined/model_instance/'+sub_folder+'.tfrecords')
+        build_cont_dataset('data/combined/model_document/'+sub_folder+'.txt','data/combined/model_document/'+sub_folder+'.tfrecords')
 
 
+    
+    '''
+    for ii in range(10):
+        build_cont_dataset('data/model_document/fold'+str(ii+1)+'.txt','data/model_document/aimed_cross_validataion'+str(ii+1)+'.tfrecords')
+    '''
+    #build_cont_dataset('data/ds/HP_train.txt','data/ds/HP/HP_train_shuf.tfrecords')
+    #split_tfrecord_file('data/ds/HP/HP_train_shuf.tfrecords', 'data/ds/HP', 128)
+    #build_cont_dataset('data/ds/HP_train_dev.txt','data/ds/HP_train_dev.tfrecords')
+    #build_cont_dataset('data/combined/'+folder_name+'_train_dev.txt','data/combined/'+folder_name+'_train_dev.tfrecords')
+    ''' 
+    #build data for MCCNN
+    for folder_name in ['CP_HP','HP']:
+        build_sent_dataset('data/ds/'+folder_name+'_train_dev.txt','data/pretrain/'+folder_name+'/'+folder_name+'_train_dev.tfrecords')
+        build_sent_dataset('data/ds/'+folder_name+'_train.txt','data/pretrain/'+folder_name+'/'+folder_name+'_train.tfrecords')
+        split_tfrecord_file('data/pretrain/'+folder_name+'/'+folder_name+'_train.tfrecords', 'data/pretrain/'+folder_name, 128)
+    
 
-
-
-
-    #build_cont_dataset('data/combined/'+folder_name+'_dev.txt','data/combined/'+folder_name+'_dev.tfrecords')
-            #build_cont_dataset('data/combined/'+folder_name+'_train_dev.txt','data/combined/'+folder_name+'_train_dev.tfrecords')
-
-
-
-
-
-
-
+    #build data for PCNN
+    for folder_name in ['CP_HP','HP']: #'baseline','CP','CP_HP','HP'
+        build_cont_dataset('data/ds/'+folder_name+'_train_dev.txt','data/ds/'+folder_name+'_train_dev.tfrecords')
+        build_cont_dataset('data/ds/'+folder_name+'_train.txt','data/ds/'+folder_name+'/'+folder_name+'_train.tfrecords')
+        split_tfrecord_file('data/ds/'+folder_name+'/'+folder_name+'_train.tfrecords', 'data/ds/'+folder_name, 128)
+    '''
 
 
 
